@@ -1,6 +1,9 @@
+var creepWorker = require('creep.worker');
+var creepFighter = require('creep.fighter');
 var roleHarvester = require('role.harvester');
 var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
+var roleBruiser = require('role.bruiser');
 var energyMonitor = require('mon.energy');
 
 module.exports.loop = function () {
@@ -8,37 +11,39 @@ module.exports.loop = function () {
     //Config
     var roleDefinitions = {
         harvesters: {
-            limit: 4,
+            name: 'harvester',
+            priority: 10,
+            limit: 3,
             creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester'),
-            create: function() { return Game.spawns['Spawn1'].createCreep([WORK,CARRY,MOVE], undefined, {role: 'harvester'}); },
-            logic: roleHarvester
+            logic: roleHarvester,
+            body: creepWorker
         },
         upgraders: {
-            limit: 6,
+            name: 'upgrader',
+            priority: 20,
+            limit: 4,
             creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'upgrader'),
-            create: function() { return Game.spawns['Spawn1'].createCreep([WORK,CARRY,MOVE], undefined, {role: 'upgrader'}); },
-            logic: roleUpgrader 
+            logic: roleUpgrader,
+            body: creepWorker
         },
         builders: {
-            limit: 0,
-            creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'builder'),
-            create: function() { return Game.spawns['Spawn1'].createCreep([WORK,CARRY,MOVE], undefined, {role: 'builder'}); },
-            logic: roleBuilder
-        },
-        superHarvester: {
-            limit: 3,
-            creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'superHarvester'),
-            create: function() { return Game.spawns['Spawn1'].createCreep([WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE], undefined, {role: 'superHarvester'}); },
-            logic: roleHarvester
-        },
-        superUpgraders: {
+            name: 'builder',
+            priority: 30,
             limit: 2,
-            creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'superUpgrader'),
-            create: function() { return Game.spawns['Spawn1'].createCreep([WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE], undefined, {role: 'superUpgrader'}); },
-            logic: roleUpgrader
+            creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'builder'),
+            logic: roleBuilder,
+            body: creepWorker
+        },
+        bruiser: {
+            name: 'bruiser',
+            priority: 40,
+            limit: 4,
+            creeps: _.filter(Game.creeps, (creep) => creep.memory.role == 'bruiser'),
+            logic: roleBruiser,
+            body: creepFighter
         }
     },
-    roles = Object.keys(roleDefinitions);
+    sortedRD = _.sortBy(roleDefinitions, (role) => { return role.priority; });
     
     //Keep memory cleaned
     for(var name in Memory.creeps) {
@@ -48,22 +53,39 @@ module.exports.loop = function () {
         }
     }
     
-    //Check if anything needs spawned
-    for (var i = 0; i < roles.length; i++) {
-        if(roleDefinitions[roles[i]].creeps.length < roleDefinitions[roles[i]].limit){
-            console.log('creating new creep of role', roles[i]);
-            roleDefinitions[roles[i]].create();
-        } 
-    };
-    
-    // console.log('RD: ', roleDefinitions[].logic.run());
-    // roleDefinitions[].logic.run();
+    //Check population
+    //Proceed through prioritized roleDefinitions
+    for (var i = 0; i < sortedRD.length; i++) {
+        var role = sortedRD[i];
 
+        //Create new worker if needed, try to create a stronger unit first
+        if(!Memory.spawning && (!role.creeps || (role.creeps.length < role.limit))){
+            
+            //Track spawning, game bugs and can overwrite a spawn if not
+            Memory.spawning = true;
+
+            //Try to spawn the highest level possible first,
+            //Work down if there aren't enough resources for it
+            for(var j = 0; j < role.body.length; j++){
+                var level = role.body[j];
+                if(Game.spawns['Spawn1'].canCreateCreep(level, undefined) == OK){
+                    Game.spawns['Spawn1'].createCreep(level, undefined, { role: role.name, level: j });
+                    console.log(role.name + ' | SPAWN OK');
+                }
+            }
+        }
+        
+        //Update memory that spawning is allowed again
+        if(Memory.spawning && Game.spawns['Spawn1'].canCreateCreep([WORK,CARRY,MOVE], undefined)){
+            Memory.spawning = false;
+        }
+    }
+    
+    //Run creep tasks
     var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester'),
         upgraders = _.filter(Game.creeps, (creep) => creep.memory.role == 'upgrader'),
         builders = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder'),
-        superHarvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'superHarvester'),
-        superUpgraders = _.filter(Game.creeps, (creep) => creep.memory.role == 'superUpgrader');
+        bruisers = _.filter(Game.creeps, (creep) => creep.memory.role == 'bruiser');
 
     for(var name in Game.creeps) {
         var creep = Game.creeps[name];
@@ -77,22 +99,16 @@ module.exports.loop = function () {
         if(creep.memory.role == 'builder') {
             roleBuilder.run(creep);
         }
-        if(creep.memory.role == 'superHarvester') {
-            roleHarvester.run(creep);
-        }
-        if(creep.memory.role == 'superUpgrader') {
-            roleUpgrader.run(creep);
+        if(creep.memory.role == 'bruiser') {
+            roleBruiser.run(creep);
         }
     }
     
-    energyMonitor.run();
-    var pop = '[Harvesters]: ' + harvesters.length + ' [Upgraders]: ' + upgraders.length + ' [Builders]: ' + builders.length;
+    //Assign energy deposit target, affects all havesters
+    energyMonitor.run(); 
     
-    if(superHarvesters){
-        pop += ' [SuperHarvester]: ' + superHarvesters.length;
-    }
-    if(superUpgraders){
-        pop += ' [SuperUpgrader]: ' + superUpgraders.length;
-    }
+    //Log population
+    var pop = '[Harvesters]: ' + harvesters.length + ' [Upgraders]: ' + upgraders.length + ' [Builders]: ' + builders.length + ' [Bruisers]: ' + bruisers.length;
+    
     console.log(pop);
 }
