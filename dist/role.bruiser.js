@@ -14,6 +14,7 @@ var roleBruiser = {
             if(creep.memory.patrolTarget){
                 currentPatrol = creep.memory.patrolTarget;
             }
+            
             var patrolTargets = creep.room.find(FIND_STRUCTURES, {
                 filter: (structure) => {
                     return (structure.structureType == STRUCTURE_SPAWN ||
@@ -22,8 +23,20 @@ var roleBruiser = {
                     );
                 }
             });
-                       
+            
+            //Start patrol loop over if we're at end
+            if(currentPatrol == patrolTargets.length ||
+                currentPatrol > patrolTargets.length){
+                    currentPatrol = 0;
+                }
             for(var i = currentPatrol; i < patrolTargets.length; i++){
+                
+                //Check if we're at destination yet
+                console.log('tar pos: ', patrolTargets[i].pos);
+                if(creep.pos.isNearTo(patrolTargets[i].pos)){
+                    i++;
+                }
+                console.log(patrolTargets[i]);
                 creep.moveTo(patrolTargets[i]);
                 creep.memory.patrolTarget = i;
             }
