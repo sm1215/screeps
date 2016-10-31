@@ -43,4 +43,4 @@ var roleBruiser = {
         }        
     }
 };
-module.exports = roleBruiser;
+module.exports = roleBruiser; 
