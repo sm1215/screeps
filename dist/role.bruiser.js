@@ -24,23 +24,21 @@ var roleBruiser = {
                 }
             });
             
-            //Start patrol loop over if we're at end
-            if(currentPatrol == patrolTargets.length ||
-                currentPatrol > patrolTargets.length){
+            //Move on to next target if we've arrived
+            if(creep.pos.isNearTo(patrolTargets[currentPatrol].pos)){
+                currentPatrol++;
+                
+                //Start patrol over if we're at end
+                if(currentPatrol > patrolTargets.length){
                     currentPatrol = 0;
                 }
-            for(var i = currentPatrol; i < patrolTargets.length; i++){
                 
-                //Check if we're at destination yet
-                console.log('tar pos: ', patrolTargets[i].pos);
-                if(creep.pos.isNearTo(patrolTargets[i].pos)){
-                    i++;
-                }
-                console.log(patrolTargets[i]);
-                creep.moveTo(patrolTargets[i]);
-                creep.memory.patrolTarget = i;
-            }
+            }   
+            
+            creep.moveTo(patrolTargets[currentPatrol]);
+            creep.memory.patrolTarget = currentPatrol;
+            
         }        
     }
 };
-module.exports = roleBruiser; 
+module.exports = roleBruiser;
